@@ -32,9 +32,6 @@ function AuthenticatedLayout() {
       ]);
       const ADMIN_EMAILS = [
         "simonosawaru255@gmail.com",
-        "izedomixavier@gmail.com",
-        "bayo@gmail.com",
-        "oweanowean24@gmail.com",
       ];
       const isEmailAdmin = Boolean(user.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
       return {
@@ -53,12 +50,7 @@ function AuthenticatedLayout() {
   const userEmail = user?.email?.toLowerCase();
   const isDirectAdminEmail = Boolean(
     userEmail &&
-    [
-      "simonosawaru255@gmail.com",
-      "izedomixavier@gmail.com",
-      "bayo@gmail.com",
-      "oweanowean24@gmail.com",
-    ].includes(userEmail),
+    ["simonosawaru255@gmail.com"].includes(userEmail),
   );
 
   const isAdmin = isDirectAdminEmail || Boolean(profile?.is_admin);

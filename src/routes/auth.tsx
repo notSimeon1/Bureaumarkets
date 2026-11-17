@@ -140,38 +140,37 @@ export function AuthPage() {
         return;
       }
 
+      const cleanEmail = parsed.data.email.toLowerCase();
+      const cleanFullName = parsed.data.fullName;
+
       if (tab === "signup") {
-        try {
-          await registerDirectUser({
-            data: {
-              email,
-              password,
-              fullName,
-              country,
-              referralCode: referralCode.trim() || undefined,
-            },
-          });
-        } catch (serverErr: any) {
-          console.warn("Server direct register fallback:", serverErr);
-        }
+        await registerDirectUser({
+          data: {
+            email: cleanEmail,
+            password,
+            fullName: cleanFullName,
+            country,
+            referralCode: referralCode.trim() || undefined,
+          },
+        });
 
         // Direct sign-in without waiting for email verification
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         if (error) {
-          // If unconfirmed error occurs, auto-confirm and retry immediately
-          await autoConfirmEmail({ data: { email } });
-          const retry = await supabase.auth.signInWithPassword({ email, password });
-          if (retry.error) throw retry.error;
+          throw error;
         }
 
         toast.success("Account initialized! Welcome to Bureaumarkets.");
       } else {
-        let { error } = await supabase.auth.signInWithPassword({ email, password });
+        let { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         if (error) {
           const errMsg = (error.message || "").toLowerCase();
           if (errMsg.includes("confirm") || errMsg.includes("email")) {
-            await autoConfirmEmail({ data: { email } });
-            const retry = await supabase.auth.signInWithPassword({ email, password });
+            await autoConfirmEmail({ data: { email: cleanEmail } });
+            const retry = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password,
+            });
             if (!retry.error) {
               error = null;
             } else {

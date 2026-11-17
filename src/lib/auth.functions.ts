@@ -22,109 +22,75 @@ export const registerDirectUser = createServerFn({ method: "POST" })
     const cleanCountry = country && !/nigeria|\bng\b|\bnga\b/i.test(country) ? country : "USA";
 
     try {
-      let createdUserId: string | null = null;
+      // 1. Create a brand new user
+      const { data: createData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email: cleanEmail,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: fullName || "Trader",
+          country: cleanCountry,
+          referral_code: referralCode || null,
+        },
+      });
 
-      // 1. Check if user already exists
-      const { data: userList, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
-      if (!listErr && userList?.users) {
-        const existing = userList.users.find((u) => u.email?.toLowerCase() === cleanEmail);
-        if (existing) {
-          createdUserId = existing.id;
-          // If already registered, ensure email is confirmed and update password
-          const prevCountry = existing.user_metadata?.country;
-          const safePrevCountry =
-            prevCountry && !/nigeria|\bng\b|\bnga\b/i.test(prevCountry) ? prevCountry : "USA";
-          await supabaseAdmin.auth.admin.updateUserById(existing.id, {
-            email_confirm: true,
-            password,
-            user_metadata: {
-              ...(existing.user_metadata || {}),
-              full_name: fullName || existing.user_metadata?.full_name,
-              country: cleanCountry || safePrevCountry,
-              referral_code: referralCode || existing.user_metadata?.referral_code,
-            },
-          });
+      if (createErr) {
+        const message = createErr.message.toLowerCase();
+        if (message.includes("already registered") || message.includes("already exists")) {
+          throw new Error("An account with this email already exists. Please sign in instead.");
         }
+        throw createErr;
       }
 
-      // 2. Create brand new user if not found
+      const createdUserId = createData?.user?.id;
       if (!createdUserId) {
-        const { data: createData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-          email: cleanEmail,
-          password,
-          email_confirm: true,
-          user_metadata: {
-            full_name: fullName || "Trader",
-            country: cleanCountry,
-            referral_code: referralCode || null,
-          },
-        });
-
-        if (createErr) {
-          if (createErr.message.toLowerCase().includes("already registered")) {
-            const { data: users } = await supabaseAdmin.auth.admin.listUsers();
-            const found = users?.users.find((u) => u.email?.toLowerCase() === cleanEmail);
-            if (found) {
-              createdUserId = found.id;
-              await supabaseAdmin.auth.admin.updateUserById(found.id, {
-                email_confirm: true,
-                password,
-              });
-            }
-          } else {
-            throw createErr;
-          }
-        } else if (createData?.user?.id) {
-          createdUserId = createData.user.id;
-        }
+        throw new Error("Supabase did not return a user ID while creating the account.");
       }
 
-      // 3. Strictly enforce user role: new signups are 'user' unless designated super admin
-      if (createdUserId) {
-        const SUPER_ADMIN_EMAILS = ["simonosawaru255@gmail.com", "izedomixavier@gmail.com"];
-        const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(cleanEmail);
-        const assignedRole = isSuperAdmin ? "super_admin" : "user";
+      // 2. Strictly enforce user role: new signups are 'user' unless designated super admin
+      const SUPER_ADMIN_EMAILS = ["simonosawaru255@gmail.com"];
+      const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(cleanEmail);
+      const assignedRole = isSuperAdmin ? "super_admin" : "user";
 
-        // Seed or sync profile with user role
-        await (supabaseAdmin as any).from("profiles").upsert(
-          {
-            id: createdUserId,
-            full_name: fullName || (isSuperAdmin ? "Super Admin" : "Trader"),
-            role: assignedRole,
-            is_admin: isSuperAdmin,
-            is_super_admin: isSuperAdmin,
-            account_mode: "demo",
-            demo_balance: 10000,
-            account_balance: 0,
-            available_cash: 0,
-            live_balance: 0,
-            kyc_status: isSuperAdmin ? "verified" : "unverified",
-            ai_trading_enabled: true,
-          },
-          { onConflict: "id" },
+      // Seed or sync profile with user role
+      await (supabaseAdmin as any).from("profiles").upsert(
+        {
+          id: createdUserId,
+          full_name: fullName || (isSuperAdmin ? "Super Admin" : "Trader"),
+          role: assignedRole,
+          is_admin: isSuperAdmin,
+          is_super_admin: isSuperAdmin,
+          account_mode: "demo",
+          demo_balance: 10000,
+          account_balance: 0,
+          available_cash: 0,
+          live_balance: 0,
+          kyc_status: isSuperAdmin ? "verified" : "unverified",
+          ai_trading_enabled: true,
+        },
+        { onConflict: "id" },
+      );
+
+      if (isSuperAdmin) {
+        await (supabaseAdmin as any).from("user_roles").upsert(
+          [
+            { user_id: createdUserId, role: "super_admin" },
+            { user_id: createdUserId, role: "admin" },
+          ],
+          { onConflict: "user_id,role" },
         );
+      } else {
+        // Remove any admin or super_admin roles from user_roles
+        await (supabaseAdmin as any)
+          .from("user_roles")
+          .delete()
+          .eq("user_id", createdUserId)
+          .in("role", ["admin", "super_admin"]);
 
-        if (isSuperAdmin) {
-          await (supabaseAdmin as any).from("user_roles").upsert(
-            [
-              { user_id: createdUserId, role: "super_admin" },
-              { user_id: createdUserId, role: "admin" },
-            ],
-            { onConflict: "user_id,role" },
-          );
-        } else {
-          // Remove any admin or super_admin roles from user_roles
-          await (supabaseAdmin as any)
-            .from("user_roles")
-            .delete()
-            .eq("user_id", createdUserId)
-            .in("role", ["admin", "super_admin"]);
-
-          // Ensure standard user role entry exists
-          await (supabaseAdmin as any)
-            .from("user_roles")
-            .upsert({ user_id: createdUserId, role: "user" }, { onConflict: "user_id,role" });
-        }
+        // Ensure standard user role entry exists
+        await (supabaseAdmin as any)
+          .from("user_roles")
+          .upsert({ user_id: createdUserId, role: "user" }, { onConflict: "user_id,role" });
       }
 
       return { success: true, message: "User registered and confirmed" };

@@ -69,13 +69,8 @@ type NavItem = {
   badge?: { label: string; tone: "gold" | "yellow" | "platinum" | "amber" };
 };
 
-const SUPER_ADMIN_EMAILS = ["simonosawaru255@gmail.com", "izedomixavier@gmail.com"];
-const ADMIN_EMAILS = [
-  "simonosawaru255@gmail.com",
-  "izedomixavier@gmail.com",
-  "bayo@gmail.com",
-  "oweanowean24@gmail.com",
-];
+const SUPER_ADMIN_EMAILS = ["simonosawaru255@gmail.com"];
+const ADMIN_EMAILS = ["simonosawaru255@gmail.com"];
 
 export function Navbar() {
   const { user, signOut } = useAuth();

@@ -7,7 +7,14 @@ import listMyWithdrawals from "./tools/list-my-withdrawals";
 import listMarketNews from "./tools/list-market-news";
 
 // Direct Supabase issuer required (not the .lovable.cloud proxy).
-const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? "wbdfjruovvolsmzpihqc";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const projectRef =
+  import.meta.env.VITE_SUPABASE_PROJECT_ID ??
+  (supabaseUrl ? new URL(supabaseUrl).hostname.split(".")[0] : undefined);
+
+if (!projectRef) {
+  throw new Error("Missing VITE_SUPABASE_URL (or VITE_SUPABASE_PROJECT_ID) for the MCP issuer.");
+}
 
 export default defineMcp({
   name: "dewtrades-mcp",

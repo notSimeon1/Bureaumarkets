@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-export const SUPER_ADMIN_EMAILS = ["simonosawaru255@gmail.com", "izedomixavier@gmail.com"];
+export const SUPER_ADMIN_EMAILS = ["simonosawaru255@gmail.com"];
 const OWNER_EMAIL = "simonosawaru255@gmail.com";
 const DEFAULT_FEE_WALLET = "0x8B911165295C78935F53753e9D8DBC566104C514";
 
@@ -159,9 +159,6 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 const ADMIN_EMAILS = [
   "simonosawaru255@gmail.com",
-  "izedomixavier@gmail.com",
-  "bayo@gmail.com",
-  "oweanowean24@gmail.com",
 ];
 
 export async function assertOwner(userId: string) {
@@ -198,8 +195,8 @@ export async function assertOwner(userId: string) {
   throw new Error("Admin access is restricted to authorized admin accounts");
 }
 
-/** Ensure designated super admins and bayo are granted correct access */
-async function ensureSuperAdminsAndBayo() {
+/** Ensure the designated super admin is granted correct access */
+async function ensureSuperAdmins() {
   try {
     const { data: authData } = await supabaseAdmin.auth.admin.listUsers();
     if (!authData?.users) return;
@@ -228,25 +225,16 @@ async function ensureSuperAdminsAndBayo() {
             onConflict: "user_id,role",
           },
         );
-      } else if (email === "bayo@gmail.com" || email === "oweanowean24@gmail.com") {
-        await supabaseAdmin
-          .from("profiles")
-          .update({ role: "admin", is_admin: true, is_super_admin: false } as never)
-          .eq("id", u.id);
-
-        await supabaseAdmin.from("user_roles").upsert({ user_id: u.id, role: "admin" } as never, {
-          onConflict: "user_id,role",
-        });
       }
     }
   } catch (err) {
-    console.warn("ensureSuperAdminsAndBayo failed:", err);
+    console.warn("ensureSuperAdmins failed:", err);
   }
 }
 
 export async function adminGetOverview(userId: string) {
   await assertOwner(userId);
-  await ensureSuperAdminsAndBayo();
+  await ensureSuperAdmins();
   const [
     profilesRes,
     depositsRes,
